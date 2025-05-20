@@ -3,39 +3,38 @@ name: Windows RDP via Ngrok
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'  # Run every 6 hours
+    - cron: '0 */6 * * *'  # every 6 hours
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Set up Ngrok
-        run: |
-          choco install ngrok -y
-          ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+      - name: Install Ngrok
+        run: choco install ngrok -y
 
-      - name: Enable RDP
-        run: |
-          Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
-          net user runneradmin 0VfJdw6PNwMmmTH
-          Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+      - name: Set Ngrok Authtoken
+        run: ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
-      - name: Start Ngrok and extract URL
-        shell: bash
+      - name: Start Ngrok and get URL
+        shell: powershell
         run: |
-          ngrok tcp 3389 > ngrok_log.txt &
-          sleep 10
-          NGROK_URL=$(grep -o 'tcp://[0-9a-zA-Z\.\:]*' ngrok_log.txt | head -n 1)
-          echo "$NGROK_URL" > ngrok_url.txt
+          Start-Process ngrok -ArgumentList "tcp 3389" -NoNewWindow -PassThru | Out-Null
+          Start-Sleep -Seconds 10
+          $resp = Invoke-RestMethod -Uri http://127.0.0.1:4040/api/tunnels
+          $url = $resp.tunnels[0].public_url
+          Write-Output "Ngrok URL: $url"
+          $url | Out-File ngrok_url.txt -Encoding ascii
 
       - name: Update Ngrok URL to Gist
+        shell: powershell
+        env:
+          GIST_ID: ${{ secrets.GIST_ID }}
+          GIST_TOKEN: ${{ secrets.MY_GIST_TOKEN }}
         run: |
-          $gistId = "${{ secrets.GIST_ID }}"
-          $gistToken = "${{ secrets.MY_GIST_TOKEN }}"
+          $gistId = $env:GIST_ID
+          $gistToken = $env:GIST_TOKEN
           $ngrokUrl = Get-Content ngrok_url.txt
           $body = @{
-            files = @{ "ngrok_url.txt" = @{ content = "$ngrokUrl" } }
+            files = @{ "ngrok_url.txt" = @{ content = $ngrokUrl } }
           } | ConvertTo-Json -Depth 10
           Invoke-RestMethod -Uri "https://api.github.com/gists/$gistId" -Method PATCH -Headers @{Authorization = "token $gistToken"} -Body $body
