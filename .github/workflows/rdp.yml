@@ -19,7 +19,7 @@ jobs:
           Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
-          net user runneradmin yourpassword
+          net user runneradmin 0VfJdw6PNwMmmTH
           Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
 
       - name: Start Ngrok and extract URL
@@ -33,7 +33,7 @@ jobs:
       - name: Update Ngrok URL to Gist
         run: |
           $gistId = "${{ secrets.GIST_ID }}"
-          $gistToken = "${{ secrets.GITHUB_TOKEN_GIST }}"
+          $gistToken = "${{ secrets.MY_GIST_TOKEN }}"
           $ngrokUrl = Get-Content ngrok_url.txt
           $body = @{
             files = @{ "ngrok_url.txt" = @{ content = "$ngrokUrl" } }
